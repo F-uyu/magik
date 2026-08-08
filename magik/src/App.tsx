@@ -9,8 +9,7 @@ class Example extends Phaser.Scene
     preload ()
     {
       this.load.image('grasslands', 'assets/grasslands.png');
-      this.load.image('water', 'assets/water.png');
-      this.load.image('grass2water', 'assets/water2.png');
+      this.load.image('grass2water', 'assets/water.png');
       this.load.tilemapTiledJSON('map', 'assets/magikmap.tmj');
       this.load.spritesheet('youngster', 'assets/boy.png', {
         frameWidth: 16,
@@ -22,19 +21,48 @@ class Example extends Phaser.Scene
     create ()
     {
       const map = this.make.tilemap({ key: 'map' });
-      const ts = map.tilesets.find(t => t.name === 'platform -grass2 to water-spritesheet')!;
-      console.log(ts.tileData);
       const grass = map.addTilesetImage('grasslands', 'grasslands')!;
-      const water = map.addTilesetImage('water', 'water')!;
       const grass2water = map.addTilesetImage('platform -grass2 to water-spritesheet', 'grass2water')!;
-      map.createLayer('Background', [grass, water, grass2water], 0, 0);
-      map.createLayer('Objects', [grass, water, grass2water], 0, 0);
+      const bgLayer = map.createLayer('Background', [grass, grass2water], 0, 0)!;
+      const objLayer = map.createLayer('Objects', [grass, grass2water], 0, 0)!;
 
-      this.player = this.physics.add.sprite(400, 400, 'youngster', 0);
-      this.cursors = this.input.keyboard!.createCursorKeys();
+
+      // --- animated tiles ---
+      const ts = grass2water;
+      const animMap = new Map<number, number[]>();
+      for (const [localId, data] of Object.entries(ts.tileData as any)) {
+        const anim = (data as any).animation;
+        if (anim) animMap.set(Number(localId), anim.map((f: any) => f.tileid + ts.firstgid));
+      }
+
+      const animatedTiles: { tile: Phaser.Tilemaps.Tile; frames: number[]; i: number }[] = [];
+      for (const layer of [bgLayer, objLayer]) {
+        layer.forEachTile(tile => {
+          const frames = animMap.get(tile.index - ts.firstgid);
+          if (frames) animatedTiles.push({ tile, frames, i: 0 });
+        });
+      }
+      
+
+      console.log('animated tiles found:', animatedTiles.length);
+
+      this.time.addEvent({
+        delay: 100,
+        loop: true,
+        callback: () => {
+          for (const a of animatedTiles) {
+            a.i = (a.i + 1) % a.frames.length;
+            a.tile.index = a.frames[a.i];
+          }
+        },
+      });
+
+
+      this.player = this.physics.add.sprite(800, 800, 'youngster', 0);
       this.player.setScale(3);
-      this.physics.world.setBounds(320, 288, 960, 992);
+      this.physics.world.setBounds(320, 288, 960, 960);
       this.player.setCollideWorldBounds(true);
+      this.cursors = this.input.keyboard!.createCursorKeys();
 
 
 
